@@ -254,21 +254,27 @@ testListTeamMembersCsv numMembers = do
     users <- Util.getUsersByHandle (catMaybes someHandles)
     mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
 
-    let check :: (Show a, Eq a) => String -> usr -> (TeamExportUser -> Maybe a) -> (usr -> Maybe a) -> IO ()
-        check msg user getTeamExportUserAttr getUserAttr = do
-          let userAttr = getUserAttr user
-          assertBool msg (isJust userAttr)
-          assertEqual (msg <> ": " <> show userAttr) 1 (countOn getTeamExportUserAttr userAttr someUsersInCsv)
+    let check :: (Show a, Eq a) => String -> (TeamExportUser -> Maybe a) -> Maybe a -> IO ()
+        check msg getTeamExportUserAttr userAttr = do
+          check msg getTeamExportUserAttr userAttr
+          assertEqual (msg <> ": equal::" <> show userAttr) (getTeamExportUserAttr undefined) userAttr
 
     liftIO . forM_ (zip users mbrs) $ \(user, mbr) -> do
       assertEqual "user/member id match" (U.userId user) (mbr ^. TM.userId)
-      check "tExportDisplayName" user (Just . tExportDisplayName) (Just . U.userDisplayName)
-      check "tExportEmail" user tExportEmail U.userEmail
+      check "tExportDisplayName" (Just . tExportDisplayName) (Just $ U.userDisplayName user)
+      check "tExportEmail" tExportEmail (U.userEmail user)
+
+      -- TODO: instead of the followign calls to check, which all go to non-unique attributes,
+      -- we somehow need to align the csv lines with the corresponding users and menbers, and
+      -- compare them line by line.  sort all 3 by email address, then zip, or something.
+      {-
       check "tExportRole" mbr tExportRole (permissionsRole . view permissions)
       check "tExportCreatedOn" mbr tExportCreatedOn (fmap snd . view invitation)
       check "tExportInvitedBy" mbr tExportInvitedBy (const $ Just ownerHandle)
       check "tExportIdpIssuer" user tExportIdpIssuer userToIdPIssuer
       check "tExportManagedBy" user (Just . tExportManagedBy) (Just . U.userManagedBy)
+      -}
+      undefined
   where
     userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
