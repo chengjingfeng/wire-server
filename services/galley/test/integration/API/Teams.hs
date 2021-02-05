@@ -245,16 +245,31 @@ testListTeamMembersCsv numMembers = do
     assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
     assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
 
-  let someUsersInCsv = take 50 usersInCsv <> take 50 (reverse usersInCsv)
-      someHandles = tExportHandle <$> someUsersInCsv
-  users <- Util.getUsersByHandle (catMaybes someHandles)
-  liftIO $ do
-    forM_ users $ \user -> do
-      let displayName = U.userDisplayName user
-      assertEqual ("user with display name " <> show displayName) 1 (countOn tExportDisplayName displayName someUsersInCsv)
+  do
+    let someUsersInCsv = take 50 usersInCsv <> take 50 (reverse usersInCsv)
+        someHandles = tExportHandle <$> someUsersInCsv
+    users <- Util.getUsersByHandle (catMaybes someHandles)
 
-      let Just email = U.userEmail user
-      assertEqual ("user with email " <> show email) 1 (countOn tExportEmail (Just email) someUsersInCsv)
+    check :: String -> Bool -> User -> (TeamExportUser -> a) -> (User -> a) -> _
+    check msg checkJust user getUserAttr getTeamExportUserAttr  = do
+      let userAttr = getUserAttr user
+      when checkJust $ assertBool msg (isJust userAttr)
+      assertEqual (msg <> ": " <> show userAttr) 1 (countOn getTeamExportUserAttr userAttr someUsersInCsv)
+
+    forM_ users $ \user -> do
+        check "tExportDisplayName" False user U.userDisplayName tExportDisplayName
+        check "tExportEmail" True user U.userEmail tExportEmail
+
+        {-
+        check "tExportRole" True user U.user... (erm) tExportRole
+        tExportRole :: Maybe Role,
+        tExportCreatedOn :: Maybe UTCTimeMillis,
+        tExportInvitedBy :: Maybe Handle,
+        tExportIdpIssuer :: Maybe HttpsUrl,
+        tExportManagedBy :: Maybe ManagedBy
+        -}
+
+        undefined
   where
     decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
