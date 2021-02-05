@@ -1445,7 +1445,7 @@ deleteTeamMember g tid owner deletee =
       const 202 === statusCode
 
 getUsersByUid :: [UserId] -> TestM [User]
-getUsersByUid = getUsersBy "uids"
+getUsersByUid = getUsersBy "ids"
 
 getUsersByHandle :: [Handle.Handle] -> TestM [User]
 getUsersByHandle = getUsersBy "handles"
