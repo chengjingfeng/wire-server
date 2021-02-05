@@ -238,7 +238,7 @@ testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
-  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembers numMembers
+  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
   [U.userHandle -> Just ownerHandle] <- Util.getUsersByUid [owner]
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
