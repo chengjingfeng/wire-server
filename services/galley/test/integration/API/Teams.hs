@@ -74,6 +74,7 @@ import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as U
 
 tests :: IO TestSetup -> TestTree
@@ -237,6 +238,7 @@ testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
   (owner, tid, _mbs) <- Util.createBindingTeamWithNMembers numMembers
+  ownerHandle <- pure undefined
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -249,27 +251,23 @@ testListTeamMembersCsv numMembers = do
     let someUsersInCsv = take 50 usersInCsv <> take 50 (reverse usersInCsv)
         someHandles = tExportHandle <$> someUsersInCsv
     users <- Util.getUsersByHandle (catMaybes someHandles)
+    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
 
-    check :: String -> Bool -> User -> (TeamExportUser -> a) -> (User -> a) -> _
-    check msg checkJust user getUserAttr getTeamExportUserAttr  = do
-      let userAttr = getUserAttr user
-      when checkJust $ assertBool msg (isJust userAttr)
-      assertEqual (msg <> ": " <> show userAttr) 1 (countOn getTeamExportUserAttr userAttr someUsersInCsv)
+    let check :: (Show a, Eq a) => String -> usr -> (TeamExportUser -> Maybe a) -> (usr -> Maybe a) -> IO ()
+        check msg user getTeamExportUserAttr getUserAttr = do
+          let userAttr = getUserAttr user
+          assertBool msg (isJust userAttr)
+          assertEqual (msg <> ": " <> show userAttr) 1 (countOn getTeamExportUserAttr userAttr someUsersInCsv)
 
-    forM_ users $ \user -> do
-        check "tExportDisplayName" False user U.userDisplayName tExportDisplayName
-        check "tExportEmail" True user U.userEmail tExportEmail
-
-        {-
-        check "tExportRole" True user U.user... (erm) tExportRole
-        tExportRole :: Maybe Role,
-        tExportCreatedOn :: Maybe UTCTimeMillis,
-        tExportInvitedBy :: Maybe Handle,
-        tExportIdpIssuer :: Maybe HttpsUrl,
-        tExportManagedBy :: Maybe ManagedBy
-        -}
-
-        undefined
+    liftIO . forM_ (zip users mbrs) $ \(user, mbr) -> do
+      assertEqual "user/member id match" (U.userId user) (mbr ^. TM.userId)
+      check "tExportDisplayName" user (Just . tExportDisplayName) (Just . U.userDisplayName)
+      check "tExportEmail" user tExportEmail U.userEmail
+      check "tExportRole" mbr tExportRole (permissionsRole . view permissions)
+      check "tExportCreatedOn" mbr tExportCreatedOn (fmap snd . view invitation)
+      check "tExportInvitedBy" mbr tExportInvitedBy (const $ Just ownerHandle)
+      check "tExportIdpIssuer" user tExportIdpIssuer undefined
+      check "tExportManagedBy" user tExportManagedBy undefined
   where
     decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)

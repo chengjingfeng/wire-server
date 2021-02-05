@@ -419,7 +419,11 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
         { tExportDisplayName = U.userDisplayName user,
           tExportHandle = U.userHandle user,
           tExportEmail = U.userIdentity user >>= U.emailIdentity,
-          tExportRole = permissionsRole . view permissions $ member
+          tExportRole = permissionsRole . view permissions $ member,
+          tExportCreatedOn = undefined,
+          tExportInvitedBy = undefined,
+          tExportIdpIssuer = undefined,
+          tExportManagedBy = undefined
         }
 
     pairMembersUsers :: [TeamMember] -> [User] -> [(TeamMember, User)]
