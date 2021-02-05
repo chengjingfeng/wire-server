@@ -42,7 +42,7 @@ data TeamExportUser = TeamExportUser
     tExportCreatedOn :: Maybe UTCTimeMillis,
     tExportInvitedBy :: Maybe Handle,
     tExportIdpIssuer :: Maybe HttpsUrl,
-    tExportManagedBy :: Maybe ManagedBy
+    tExportManagedBy :: ManagedBy
     -- FUTUREWORK: @tExportRichProfile :: Maybe RichInfo  -- (rendering: one key-value pair per csv column, sorted alphanumerically by key)@
   }
   deriving (Show, Eq, Generic)
@@ -58,7 +58,7 @@ instance ToNamedRecord TeamExportUser where
         ("created on", maybe "" toByteString' (tExportCreatedOn row)),
         ("invited by", maybe "" toByteString' (tExportInvitedBy row)),
         ("idp issuer", maybe "" toByteString' (tExportIdpIssuer row)),
-        ("managed by", maybe "" toByteString' (tExportManagedBy row))
+        ("managed by", toByteString' (tExportManagedBy row))
       ]
 
 instance DefaultOrdered TeamExportUser where
@@ -95,4 +95,4 @@ instance FromNamedRecord TeamExportUser where
       <*> (nrec .: "created on" >>= allowEmpty parseByteString)
       <*> (nrec .: "invited by" >>= allowEmpty parseByteString)
       <*> (nrec .: "idp issuer" >>= allowEmpty parseByteString)
-      <*> (nrec .: "managed by" >>= allowEmpty parseByteString)
+      <*> (nrec .: "managed by" >>= parseByteString)

@@ -42,9 +42,10 @@ import qualified Data.Currency as Currency
 import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (HttpsUrl, PlainTextPassword (..))
 import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -238,7 +239,7 @@ testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
   (owner, tid, _mbs) <- Util.createBindingTeamWithNMembers numMembers
-  ownerHandle <- pure undefined
+  [U.userHandle -> Just ownerHandle] <- Util.getUsersByUid [owner]
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -266,9 +267,15 @@ testListTeamMembersCsv numMembers = do
       check "tExportRole" mbr tExportRole (permissionsRole . view permissions)
       check "tExportCreatedOn" mbr tExportCreatedOn (fmap snd . view invitation)
       check "tExportInvitedBy" mbr tExportInvitedBy (const $ Just ownerHandle)
-      check "tExportIdpIssuer" user tExportIdpIssuer undefined
-      check "tExportManagedBy" user tExportManagedBy undefined
+      check "tExportIdpIssuer" user tExportIdpIssuer userToIdPIssuer
+      check "tExportManagedBy" user (Just . tExportManagedBy) (Just . U.userManagedBy)
   where
+    userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
+    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
+      Just (U.UserSSOId issuer _) -> maybe (error "shouldn't happen") Just . fromByteString' . cs $ issuer
+      Just _ -> Nothing
+      Nothing -> Nothing
+
     decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
 

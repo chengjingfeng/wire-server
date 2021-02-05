@@ -1444,17 +1444,23 @@ deleteTeamMember g tid owner deletee =
     !!! do
       const 202 === statusCode
 
+getUsersByUid :: [UserId] -> TestM [User]
+getUsersByUid = getUsersBy "uids"
+
 getUsersByHandle :: [Handle.Handle] -> TestM [User]
-getUsersByHandle handles = do
+getUsersByHandle = getUsersBy "handles"
+
+getUsersBy :: (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
+getUsersBy searchKey uidsOrHandles = do
   brig <- view tsBrig
   res <-
     get
       ( brig
           . path "/i/users"
-          . queryItem "handles" users
+          . queryItem searchKey users
           . expect2xx
       )
   let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
   return $ fmap accountUser accounts
   where
-    users = BS.intercalate "," $ toByteString' <$> handles
+    users = BS.intercalate "," $ toByteString' <$> uidsOrHandles
